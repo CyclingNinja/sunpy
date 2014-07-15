@@ -235,7 +235,7 @@ class JSOCClient(object):
         max_conns: int
             Maximum number of download connections.
 
-        downloader: sunpy.download.Downloder instance
+        downloader: sunpy.download.Downloader instance
             A Custom downloader to use
 
         results: Results instance
