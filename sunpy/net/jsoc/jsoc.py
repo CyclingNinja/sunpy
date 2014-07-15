@@ -1,9 +1,4 @@
 # -*- coding: utf-8 -*-
-"""
-Created on Wed Mar 26 13:44:56 2014
-
-@author: stuart
-"""
 from __future__ import print_function, absolute_import
 
 import os
@@ -20,6 +15,7 @@ from sunpy.net.download import Downloader
 from sunpy.net.vso.vso import Results
 from sunpy.net.attr import and_
 from sunpy.net.jsoc.attrs import walker
+
 __all__ = ['JSOCClient']
 
 JSOC_URL = 'http://jsoc.stanford.edu/cgi-bin/ajax/jsoc_fetch'
@@ -48,7 +44,8 @@ class JSOCClient(object):
 
     >>> from sunpy.net import jsoc
     >>> client = jsoc.JSOCClient()
-    >>> IDs = client.jsoc_query('2012/1/1T00:00:00', '2012/1/1T00:00:45', 'hmi.m_45s')
+    >>> IDs = client.query(jsoc.Time('2010-01-01T00:00', '2010-01-01T01:00'),
+    ...                    jsoc.Series('hmi.m_45s'))
 
     The returned `IDs` is a list of JSOC request identifiers, you can check the status of
     a request thus:
@@ -61,35 +58,28 @@ class JSOCClient(object):
 
     This returns a Results instance which can be used to watch the progress
     of the download.
+
+    >>> res.wait(progress=True)
     """
 
-    def jsoc_query(self, *query, **kwargs):
+    def query(self, *query, **kwargs):
         """
         Build a JSOC query and submit it to JSOC for processing.
 
-        Parameters
-        ----------
-        start_time: datetime, astropy.time or string
-            The time in UTC (or astropy.time object) specifying the start time.
+        Takes a variable number of `sunpy.net.jsoc.attrs` as parameters,
+        which are chained together using AND.
 
-        end_time: datetime, astropy.time or string
-            The time in UTC (or astropy.time object) specifying the end time.
+        Complex queries to be easily formed using logical operators such as
+        & and |.
 
-        series: string
-            A string representing the JSOC data series to download e.g. 'hmi.M_45s'
+        Examples
+        --------
+        Request all AIA 304 image data between 2010-01-01T00:00 and
+        2010-01-01T01:00 in rice compressed form.
 
-        notify: string
-            An email address to get a notification to when JSOC has staged your request
-
-        protocol: string
-            The type of download to request one of ("FITS", "JPEG", "MPG", "MP4", or "as-is").
-            Only FITS is supported, the others will require extra keywords.
-
-        compression: string
-            'rice' or None, download FITS files with RICE compression.
-
-        kwargs: dict
-            Extra keywords to put into the POST payload to JSOC.
+        >>> client.query(jsoc.Time('2010-01-01T00:00', '2010-01-01T01:00'),
+        ...              jsoc.Series('aia.lev1_euv_12s'), jsoc.Wavelength(304),
+        ...              jsoc.Compression('rice'), jsoc.Segment('image'))
 
         Returns
         -------
@@ -334,8 +324,30 @@ class JSOCClient(object):
         else:
             jprotocol = protocol
 
-        payload = {'ds':'{0}[{1}-{2}]'.format(series, start_time.strftime("%Y.%m.%d_%H:%M:%S_TAI"),
-                                           end_time.strftime("%Y.%m.%d_%H:%M:%S_TAI")),
+        # Build the dataset string
+        # Extract and format Wavelength
+        wavelength = kwargs.pop('wavelength', None)
+        if wavelength:
+            if series[0:3] != 'aia':
+	        raise TypeError("This series does not support the wavelength attribute.")
+	    else:
+	       if isinstance(wavelength,list):
+	           wavelength = str(wavelength)
+	       else:
+	           wavelength = '[{0}]'.format(wavelength)
+
+        # Extract and format segment
+        segment = kwargs.pop('segment', '')
+        if segment != '':
+            segment = '{{{segment}}}'.format(segment=segment)
+
+        dataset = '{series}[{start}-{end}]{wavelength}{segment}'.format(
+                   series=series, start=start_time.strftime("%Y.%m.%d_%H:%M:%S_TAI"),
+                   end=end_time.strftime("%Y.%m.%d_%H:%M:%S_TAI"),
+                   wavelength=wavelength, segment=segment)
+
+        # Build full POST payload
+        payload = {'ds': dataset,
                    'format':'json',
                    'method':'url',
                    'notify':notify,
@@ -345,17 +357,6 @@ class JSOCClient(object):
                    'requestor':'none',
                    'filenamefmt':'{0}.{{T_REC:A}}.{{CAMERA}}.{{segment}}'.format(series)}
 
-        if kwargs.has_key('wavelength'):
-	    if series[0:3] != 'aia':
-	        raise TypeError("This series does not support the wavelength attribute.")
-	    else:
-	       if isinstance(kwargs['wavelength'],list):
-	           tmp = str(kwargs['wavelength'])
-	       else:
-	           tmp = '[{0}]'.format(kwargs['wavelength'])
-	       payload['ds'] += tmp
-            kwargs.pop('wavelength')
-	
         payload.update(kwargs)
         return payload
 
