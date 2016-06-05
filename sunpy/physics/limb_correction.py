@@ -1,5 +1,5 @@
 from __future__ import division, print_function
-import pytest
+#import pytest
 import numpy as np
 import astropy.units as u
 import sunpy.map
@@ -8,10 +8,11 @@ import os
 
 
 
-@pytest.fixture
+#@pytest.fixture
 def hsi_image():
     testpath = sunpy.data.test.rootdir
-    return sunpy.map.Map(os.path.join(testpath, 'hsi_image_20101016_191218.fits'))
+    test_file = sunpy.map.Map( os.path.join(testpath, 'HinodeSOT.fits'))
+    return test_file.Waves[4]
 
 
 
@@ -21,4 +22,8 @@ def test_limb_correct():
 
 
 def limb_correct(amap):
+    """
+    This function takes in a map cube, in the range 400 - 1600 angstroms.
+
+    """
     return amap
